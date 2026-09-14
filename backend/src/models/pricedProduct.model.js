@@ -8,6 +8,26 @@ const pricingTierSchema = new mongoose.Schema(
             min: 1,
         },
 
+        /*
+         * IMPORTANT:
+         *
+         * `price` is the TOTAL PRICE for this quantity tier.
+         *
+         * Example:
+         *
+         * quantity: 6
+         * price: 1000
+         *
+         * means:
+         *
+         * 6 pieces = ₱1,000 total
+         *
+         * Effective unit price:
+         *
+         * ₱1,000 / 6 = ₱166.666...
+         *
+         * Do NOT store ₱166.67 here.
+         */
         price: {
             type: Number,
             required: true,

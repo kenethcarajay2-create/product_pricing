@@ -32,73 +32,103 @@ function PricingEditor({
     ] = useState("");
 
     useEffect(() => {
-    setValidationError("");
+        setValidationError("");
 
-    if (!product) {
-        setCostPrice("");
-        setSellingPrice("");
-        setBulkPricing([]);
-        return;
-    }
+        if (!product) {
+            setCostPrice("");
+            setSellingPrice("");
+            setBulkPricing([]);
+            return;
+        }
 
-    if (mode === "priced") {
-        const regularTier =
-            product.pricing?.find(
-                (tier) =>
-                    tier.quantity === 1
+        if (mode === "priced") {
+            const regularTier =
+                product.pricing?.find(
+                    (tier) =>
+                        Number(
+                            tier.quantity
+                        ) === 1
+                );
+
+            const bulkTiers =
+                (
+                    product.pricing ||
+                    []
+                )
+                    .filter(
+                        (tier) =>
+                            Number(
+                                tier.quantity
+                            ) > 1
+                    )
+                    .map(
+                        (tier) => ({
+                            quantity:
+                                String(
+                                    tier.quantity
+                                ),
+
+                            /*
+                             * IMPORTANT:
+                             *
+                             * tier.price is the
+                             * TOTAL price for the
+                             * entire quantity tier.
+                             *
+                             * Example:
+                             *
+                             * quantity: 6
+                             * price: 1000
+                             *
+                             * means:
+                             *
+                             * 6 Pieces = ₱1,000
+                             *
+                             * NOT:
+                             *
+                             * ₱1,000 per Piece
+                             */
+                            price: String(
+                                tier.price
+                            ),
+                        })
+                    );
+
+            setCostPrice(
+                product.costPrice ===
+                    null ||
+                    product.costPrice ===
+                        undefined
+                    ? ""
+                    : String(
+                          product.costPrice
+                      )
             );
 
-        const bulkTiers =
-            (product.pricing || [])
-                .filter(
-                    (tier) =>
-                        tier.quantity > 1
-                )
-                .map((tier) => ({
-                    quantity: String(
-                        tier.quantity
-                    ),
-                    price: String(
-                        tier.price
-                    ),
-                }));
+            setSellingPrice(
+                regularTier
+                    ? String(
+                          regularTier.price
+                      )
+                    : ""
+            );
 
-        setCostPrice(
-            product.costPrice ===
-                null ||
-                product.costPrice ===
-                    undefined
-                ? ""
-                : String(
-                      product.costPrice
-                  )
-        );
-
-        setSellingPrice(
-            regularTier
-                ? String(
-                      regularTier.price
-                  )
-                : ""
-        );
-
-        setBulkPricing(
-            bulkTiers
-        );
-    } else {
-        setCostPrice("");
-        setSellingPrice("");
-        setBulkPricing([]);
-    }
-}, [product?._id, mode]);
+            setBulkPricing(
+                bulkTiers
+            );
+        } else {
+            setCostPrice("");
+            setSellingPrice("");
+            setBulkPricing([]);
+        }
+    }, [product?._id, mode]);
 
     if (!product) {
         return (
             <section className="flex min-h-[500px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="text-center">
                     <h2 className="font-bold text-slate-900">
-                        No product
-                        selected
+                        No product selected
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
@@ -130,7 +160,10 @@ function PricingEditor({
         setBulkPricing(
             (current) =>
                 current.map(
-                    (tier, tierIndex) =>
+                    (
+                        tier,
+                        tierIndex
+                    ) =>
                         tierIndex ===
                         index
                             ? {
@@ -149,7 +182,10 @@ function PricingEditor({
         setBulkPricing(
             (current) =>
                 current.filter(
-                    (_, tierIndex) =>
+                    (
+                        _,
+                        tierIndex
+                    ) =>
                         tierIndex !==
                         index
                 )
@@ -201,8 +237,14 @@ function PricingEditor({
                     tier.quantity
                 );
 
+            /*
+             * This is the total
+             * bundle price.
+             */
             const price =
-                Number(tier.price);
+                Number(
+                    tier.price
+                );
 
             if (
                 !Number.isInteger(
@@ -228,6 +270,7 @@ function PricingEditor({
             );
 
             if (
+                tier.price === "" ||
                 !Number.isFinite(
                     price
                 ) ||
@@ -235,7 +278,7 @@ function PricingEditor({
             ) {
                 return `Bulk tier ${
                     index + 1
-                }: price must be greater than 0.`;
+                }: total price must be greater than 0.`;
             }
         }
 
@@ -277,6 +320,30 @@ function PricingEditor({
 
             baseUnit: "Piece",
 
+            /*
+             * IMPORTANT:
+             *
+             * Keep the bulk price as
+             * the TOTAL price.
+             *
+             * Example:
+             *
+             * quantity input = 6
+             * price input = 1000
+             *
+             * Payload:
+             *
+             * {
+             *     quantity: 6,
+             *     price: 1000
+             * }
+             *
+             * We intentionally DO NOT
+             * divide 1000 by 6 here.
+             *
+             * The exact bundle total
+             * must be preserved.
+             */
             bulkPricing:
                 bulkPricing
                     .map(
@@ -285,9 +352,11 @@ function PricingEditor({
                                 Number(
                                     tier.quantity
                                 ),
-                            price: Number(
-                                tier.price
-                            ),
+
+                            price:
+                                Number(
+                                    tier.price
+                                ),
                         })
                     )
                     .sort(
@@ -297,9 +366,12 @@ function PricingEditor({
                     ),
         };
 
-        await onSave(payload, {
-            goNext,
-        });
+        await onSave(
+            payload,
+            {
+                goNext,
+            }
+        );
     };
 
     const handleSubmit = (
@@ -311,10 +383,13 @@ function PricingEditor({
     };
 
     const displayMessage =
-        validationError || message;
+        validationError ||
+        message;
 
     const messageIsError =
-        Boolean(validationError) ||
+        Boolean(
+            validationError
+        ) ||
         Boolean(
             message &&
                 !message
@@ -330,10 +405,11 @@ function PricingEditor({
                 <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-    {mode === "priced"
-        ? "Editing Priced Product"
-        : "Pricing Product"}
-</p>
+                            {mode ===
+                            "priced"
+                                ? "Editing Priced Product"
+                                : "Pricing Product"}
+                        </p>
 
                         <h2 className="mt-1 break-words text-xl font-bold text-slate-900 sm:text-2xl">
                             {product.name ||
@@ -419,9 +495,10 @@ function PricingEditor({
                             </h3>
 
                             <p className="mt-1 text-xs text-slate-500">
-                                Optional
-                                quantity
-                                discounts.
+                                Enter the
+                                total price
+                                for the entire
+                                bulk quantity.
                             </p>
                         </div>
 
@@ -449,10 +526,13 @@ function PricingEditor({
                             </p>
 
                             <p className="mt-1 text-xs text-slate-400">
-                                Add a tier
-                                for wholesale
-                                or quantity
-                                pricing.
+                                Example:
+                                quantity 6
+                                with a total
+                                price of
+                                ₱1,000 means
+                                6 Pieces cost
+                                ₱1,000.
                             </p>
                         </div>
                     ) : (
@@ -481,6 +561,10 @@ function PricingEditor({
                                         onRemove={
                                             removeBulkTier
                                         }
+                                        baseUnit={
+                                            product.baseUnit ||
+                                            "Piece"
+                                        }
                                     />
                                 )
                             )}
@@ -505,31 +589,39 @@ function PricingEditor({
                 {desktop && (
                     <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
                         <button
-    type="button"
-    disabled={saving}
-    onClick={() =>
-        submitPricing(false)
-    }
-    className="min-h-11 rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700"
->
-    {saving
-        ? "Saving..."
-        : mode === "priced"
-        ? "Save Changes"
-        : "Save"}
-</button>
+                            type="button"
+                            disabled={
+                                saving
+                            }
+                            onClick={() =>
+                                submitPricing(
+                                    false
+                                )
+                            }
+                            className="min-h-11 rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-700"
+                        >
+                            {saving
+                                ? "Saving..."
+                                : mode ===
+                                    "priced"
+                                  ? "Save Changes"
+                                  : "Save"}
+                        </button>
 
-<button
-    type="submit"
-    disabled={saving}
-    className="min-h-11 rounded-xl bg-slate-900 px-6 text-sm font-semibold text-white"
->
-    {saving
-        ? "Saving..."
-        : mode === "priced"
-        ? "Save Changes & Next"
-        : "Save & Next"}
-</button>
+                        <button
+                            type="submit"
+                            disabled={
+                                saving
+                            }
+                            className="min-h-11 rounded-xl bg-slate-900 px-6 text-sm font-semibold text-white"
+                        >
+                            {saving
+                                ? "Saving..."
+                                : mode ===
+                                    "priced"
+                                  ? "Save Changes & Next"
+                                  : "Save & Next"}
+                        </button>
                     </div>
                 )}
             </form>
@@ -588,7 +680,8 @@ function PriceInput({
                         event
                     ) =>
                         onChange(
-                            event.target
+                            event
+                                .target
                                 .value
                         )
                     }
@@ -608,90 +701,175 @@ function BulkTierRow({
     disabled,
     onChange,
     onRemove,
+    baseUnit = "Piece",
 }) {
+    const quantity =
+        Number(
+            tier.quantity
+        );
+
+    const totalPrice =
+        Number(
+            tier.price
+        );
+
+    const hasValidCalculation =
+        Number.isInteger(
+            quantity
+        ) &&
+        quantity >= 2 &&
+        tier.price !== "" &&
+        Number.isFinite(
+            totalPrice
+        ) &&
+        totalPrice > 0;
+
+    const effectiveUnitPrice =
+        hasValidCalculation
+            ? totalPrice /
+              quantity
+            : null;
+
+    const formatCurrency = (
+        value
+    ) => {
+        return Number(
+            value
+        ).toLocaleString(
+            "en-PH",
+            {
+                minimumFractionDigits:
+                    2,
+                maximumFractionDigits:
+                    2,
+            }
+        );
+    };
+
+    const displayUnit =
+        baseUnit ||
+        "Piece";
+
     return (
-        <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1.3fr_auto] sm:items-end">
-            <label className="min-w-0">
-                <span className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Quantity
-                </span>
-
-                <input
-                    type="number"
-                    inputMode="numeric"
-                    min="2"
-                    step="1"
-                    disabled={
-                        disabled
-                    }
-                    value={
-                        tier.quantity
-                    }
-                    onChange={(
-                        event
-                    ) =>
-                        onChange(
-                            index,
-                            "quantity",
-                            event.target
-                                .value
-                        )
-                    }
-                    placeholder="e.g. 6"
-                    className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
-                />
-            </label>
-
-            <label className="min-w-0">
-                <span className="mb-1.5 block text-xs font-semibold text-slate-600">
-                    Price each
-                </span>
-
-                <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500">
-                        ₱
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1.3fr_auto] sm:items-start">
+                <label className="min-w-0">
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                        Bulk Quantity
                     </span>
 
                     <input
                         type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.01"
+                        inputMode="numeric"
+                        min="2"
+                        step="1"
                         disabled={
                             disabled
                         }
                         value={
-                            tier.price
+                            tier.quantity
                         }
                         onChange={(
                             event
                         ) =>
                             onChange(
                                 index,
-                                "price",
+                                "quantity",
                                 event
                                     .target
                                     .value
                             )
                         }
-                        placeholder="0.00"
-                        className="w-full min-w-0 rounded-lg border border-slate-300 bg-white py-2.5 pl-7 pr-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
+                        placeholder="e.g. 6"
+                        className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
                     />
-                </div>
-            </label>
+                </label>
 
-            <button
-                type="button"
-                onClick={() =>
-                    onRemove(index)
-                }
-                disabled={
-                    disabled
-                }
-                className="col-span-2 rounded-lg border border-red-200 bg-white px-3 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1"
-            >
-                Remove
-            </button>
+                <label className="min-w-0">
+                    <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                        Bulk Total Price
+                    </span>
+
+                    <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-500">
+                            ₱
+                        </span>
+
+                        <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.01"
+                            disabled={
+                                disabled
+                            }
+                            value={
+                                tier.price
+                            }
+                            onChange={(
+                                event
+                            ) =>
+                                onChange(
+                                    index,
+                                    "price",
+                                    event
+                                        .target
+                                        .value
+                                )
+                            }
+                            placeholder="e.g. 1000.00"
+                            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white py-2.5 pl-7 pr-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
+                        />
+                    </div>
+                </label>
+
+                <button
+                    type="button"
+                    onClick={() =>
+                        onRemove(
+                            index
+                        )
+                    }
+                    disabled={
+                        disabled
+                    }
+                    className="col-span-2 rounded-lg border border-red-200 bg-white px-3 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1 sm:mt-[25px]"
+                >
+                    Remove
+                </button>
+            </div>
+
+            {hasValidCalculation && (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                        <p className="text-xs font-semibold text-emerald-800">
+                            {quantity}{" "}
+                            {displayUnit}
+                            {quantity !==
+                            1
+                                ? "s"
+                                : ""}{" "}
+                            = ₱
+                            {formatCurrency(
+                                totalPrice
+                            )}{" "}
+                            total
+                        </p>
+
+                        <p className="text-xs font-medium text-emerald-700">
+                            Effective
+                            price: ₱
+                            {formatCurrency(
+                                effectiveUnitPrice
+                            )}{" "}
+                            per{" "}
+                            {
+                                displayUnit
+                            }
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

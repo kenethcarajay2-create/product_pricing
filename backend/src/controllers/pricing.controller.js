@@ -42,6 +42,7 @@ const createPricedProduct = async (
         next(error);
     }
 };
+
 const getPricedProducts = async (
     req,
     res,
@@ -85,6 +86,7 @@ const updatePricedProduct =
             next(error);
         }
     };
+
 export {
     getProducts,
     createPricedProduct,
