@@ -87,9 +87,33 @@ const updatePricedProduct =
         }
     };
 
+const deletePricedProduct =
+    async (
+        req,
+        res,
+        next
+    ) => {
+        try {
+            const product =
+                await pricingService.deletePricedProduct(
+                    req.params.id
+                );
+
+            res.status(200).json({
+                success: true,
+                message:
+                    "Product pricing deleted successfully.",
+                data: product,
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
 export {
     getProducts,
     createPricedProduct,
     getPricedProducts,
     updatePricedProduct,
+    deletePricedProduct,
 };

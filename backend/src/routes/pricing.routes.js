@@ -14,6 +14,7 @@ router.post(
     "/products/:captureId",
     pricingController.createPricedProduct
 );
+
 router.get(
     "/priced",
     pricingController.getPricedProducts
@@ -22,6 +23,11 @@ router.get(
 router.patch(
     "/priced/:id",
     pricingController.updatePricedProduct
+);
+
+router.delete(
+    "/priced/:id",
+    pricingController.deletePricedProduct
 );
 
 export default router;

@@ -1,5 +1,3 @@
-// src/pages/PricingPage.jsx
-
 import {
     useEffect,
     useMemo,
@@ -38,6 +36,9 @@ function PricingPage() {
     const [saving, setSaving] =
         useState(false);
 
+    const [deleting, setDeleting] =
+        useState(false);
+
     const [message, setMessage] =
         useState("");
 
@@ -60,7 +61,9 @@ function PricingPage() {
             selectedProductId,
         ]);
 
-    const loadProducts = async () => {
+    const loadProducts = async ({
+        preserveSelection = false,
+    } = {}) => {
         try {
             setLoading(true);
             setLoadError("");
@@ -81,14 +84,26 @@ function PricingPage() {
                 priced
             );
 
-            const initialProducts =
+            const products =
                 mode === "unpriced"
                     ? unpriced
                     : priced;
 
+            if (
+                preserveSelection &&
+                selectedProductId &&
+                products.some(
+                    (product) =>
+                        product._id ===
+                        selectedProductId
+                )
+            ) {
+                return;
+            }
+
             setSelectedProductId(
-                initialProducts[0]
-                    ?._id || null
+                products[0]?._id ||
+                    null
             );
         } catch (error) {
             console.error(error);
@@ -110,7 +125,10 @@ function PricingPage() {
     const handleModeChange = (
         nextMode
     ) => {
-        if (saving) {
+        if (
+            saving ||
+            deleting
+        ) {
             return;
         }
 
@@ -123,18 +141,23 @@ function PricingPage() {
                 : pricedProducts;
 
         setSelectedProductId(
-            products[0]?._id || null
+            products[0]?._id ||
+                null
         );
     };
 
     const handleSelectProduct = (
         productId
     ) => {
-        if (saving) {
+        if (
+            saving ||
+            deleting
+        ) {
             return;
         }
 
         setMessage("");
+
         setSelectedProductId(
             productId
         );
@@ -173,6 +196,47 @@ function PricingPage() {
         ];
     };
 
+    /*
+     * SKIP
+     *
+     * Skip does not touch the database.
+     *
+     * The current ProductCapture remains unpriced.
+     * We simply move selection to the next item.
+     */
+    const handleSkipProduct =
+        () => {
+            if (
+                saving ||
+                deleting ||
+                mode !==
+                    "unpriced" ||
+                !selectedProduct
+            ) {
+                return;
+            }
+
+            const nextProduct =
+                getNextProduct(
+                    unpricedProducts,
+                    selectedProduct._id
+                );
+
+            if (
+                !nextProduct
+            ) {
+                return;
+            }
+
+            setMessage(
+                "Product skipped. No changes were saved."
+            );
+
+            setSelectedProductId(
+                nextProduct._id
+            );
+        };
+
     const handleSavePricing =
         async (
             pricingData,
@@ -189,7 +253,8 @@ function PricingPage() {
                 setMessage("");
 
                 if (
-                    mode === "unpriced"
+                    mode ===
+                    "unpriced"
                 ) {
                     const savedProduct =
                         await productService.savePricedProduct(
@@ -230,6 +295,10 @@ function PricingPage() {
                         return;
                     }
 
+                    /*
+                     * Existing workflow already advances
+                     * after pricing an unpriced product.
+                     */
                     const nextProduct =
                         remaining[0];
 
@@ -246,15 +315,17 @@ function PricingPage() {
                         pricingData
                     );
 
+                const updatedList =
+                    pricedProducts.map(
+                        (product) =>
+                            product._id ===
+                            updatedProduct._id
+                                ? updatedProduct
+                                : product
+                    );
+
                 setPricedProducts(
-                    (current) =>
-                        current.map(
-                            (product) =>
-                                product._id ===
-                                updatedProduct._id
-                                    ? updatedProduct
-                                    : product
-                        )
+                    updatedList
                 );
 
                 setMessage(
@@ -264,7 +335,7 @@ function PricingPage() {
                 if (goNext) {
                     const nextProduct =
                         getNextProduct(
-                            pricedProducts,
+                            updatedList,
                             selectedProduct._id
                         );
 
@@ -291,11 +362,122 @@ function PricingPage() {
             }
         };
 
+    /*
+     * DELETE PRICING
+     *
+     * This removes only the pricedproducts record.
+     *
+     * It does NOT delete the original ProductCapture.
+     */
+    const handleDeletePricing =
+        async () => {
+            if (
+                !selectedProduct ||
+                mode !==
+                    "priced" ||
+                saving ||
+                deleting
+            ) {
+                return;
+            }
+
+            const productName =
+                selectedProduct.name ||
+                "this product";
+
+            const confirmed =
+                window.confirm(
+                    `Delete the pricing for "${productName}"?\n\n` +
+                        "The original captured product will NOT be deleted. " +
+                        "It will return to the Unpriced list."
+                );
+
+            if (!confirmed) {
+                return;
+            }
+
+            const deletedId =
+                selectedProduct._id;
+
+            try {
+                setDeleting(true);
+                setMessage("");
+
+                await productService.deletePricedProduct(
+                    deletedId
+                );
+
+                const remainingPriced =
+                    pricedProducts.filter(
+                        (product) =>
+                            product._id !==
+                            deletedId
+                    );
+
+                setPricedProducts(
+                    remainingPriced
+                );
+
+                /*
+                 * Reload the unpriced list from the backend.
+                 *
+                 * This is safer than manually reconstructing a
+                 * ProductCapture object from the priced product,
+                 * because the source capture remains authoritative.
+                 */
+                const refreshedUnpriced =
+                    await productService.getUnpricedProducts();
+
+                setUnpricedProducts(
+                    refreshedUnpriced
+                );
+
+                setMessage(
+                    "Pricing deleted successfully. The product is available under Unpriced again."
+                );
+
+                if (
+                    remainingPriced.length >
+                    0
+                ) {
+                    setSelectedProductId(
+                        remainingPriced[0]
+                            ._id
+                    );
+                } else {
+                    /*
+                     * No priced products remain.
+                     * Move the user back to Unpriced.
+                     */
+                    setMode(
+                        "unpriced"
+                    );
+
+                    setSelectedProductId(
+                        refreshedUnpriced[0]
+                            ?._id ||
+                            null
+                    );
+                }
+            } catch (error) {
+                console.error(error);
+
+                setMessage(
+                    error.response?.data
+                        ?.message ||
+                        "Unable to delete product pricing."
+                );
+            } finally {
+                setDeleting(false);
+            }
+        };
+
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-slate-50">
                 <p className="text-sm font-medium text-slate-600">
-                    Loading products...
+                    Loading
+                    products...
                 </p>
             </div>
         );
@@ -316,8 +498,8 @@ function PricingPage() {
 
                     <button
                         type="button"
-                        onClick={
-                            loadProducts
+                        onClick={() =>
+                            loadProducts()
                         }
                         className="mt-5 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
                     >
@@ -407,7 +589,8 @@ function PricingPage() {
                             handleSelectProduct
                         }
                         disabled={
-                            saving
+                            saving ||
+                            deleting
                         }
                     />
 
@@ -420,11 +603,20 @@ function PricingPage() {
                         saving={
                             saving
                         }
+                        deleting={
+                            deleting
+                        }
                         message={
                             message
                         }
                         onSave={
                             handleSavePricing
+                        }
+                        onSkip={
+                            handleSkipProduct
+                        }
+                        onDelete={
+                            handleDeletePricing
                         }
                         desktop
                     />

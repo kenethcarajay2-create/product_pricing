@@ -7,8 +7,10 @@ const getUnpricedProducts =
                 "/pricing/products"
             );
 
-        return response.data
-            ?.data || [];
+        return (
+            response.data
+                ?.data || []
+        );
     };
 
 const savePricedProduct =
@@ -33,8 +35,10 @@ const getPricedProducts =
                 "/pricing/priced"
             );
 
-        return response.data
-            ?.data || [];
+        return (
+            response.data
+                ?.data || []
+        );
     };
 
 const updatePricedProduct =
@@ -52,11 +56,23 @@ const updatePricedProduct =
             ?.data;
     };
 
+const deletePricedProduct =
+    async (id) => {
+        const response =
+            await api.delete(
+                `/pricing/priced/${id}`
+            );
+
+        return response.data
+            ?.data;
+    };
+
 const productService = {
     getUnpricedProducts,
     savePricedProduct,
     getPricedProducts,
     updatePricedProduct,
+    deletePricedProduct,
 };
 
 export default productService;

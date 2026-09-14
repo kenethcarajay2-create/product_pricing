@@ -2,7 +2,11 @@ import ProductCapture from "../models/productCapture.model.js";
 import PricedProduct from "../models/pricedProduct.model.js";
 
 /*
- * Pricing rule used throughout this service:
+ * PRICING RULE
+ *
+ * A pricing tier stores the TOTAL price for the quantity.
+ *
+ * Example:
  *
  * {
  *     quantity: 6,
@@ -11,27 +15,25 @@ import PricedProduct from "../models/pricedProduct.model.js";
  *
  * means:
  *
- * 6 pieces = ₱1,000 TOTAL
+ * 6 pieces = ₱1,000 total
  *
- * Therefore:
+ * Effective per-piece price:
  *
- * effective unit price = 1000 / 6
+ * 1000 / 6 = 166.666...
  *
- * We intentionally keep the original bundle price in MongoDB
- * instead of replacing it with a rounded per-piece price.
+ * We keep ₱1,000 as the authoritative stored value so exact
+ * bundle totals are never lost because of rounding.
  */
 
 const calculateUnitPrice = (
     quantity,
     bundlePrice
 ) => {
-    const parsedQuantity = Number(
-        quantity
-    );
+    const parsedQuantity =
+        Number(quantity);
 
-    const parsedBundlePrice = Number(
-        bundlePrice
-    );
+    const parsedBundlePrice =
+        Number(bundlePrice);
 
     if (
         !Number.isFinite(
@@ -51,26 +53,6 @@ const calculateUnitPrice = (
     );
 };
 
-/*
- * Adds unitPrice to every pricing tier returned by the API.
- *
- * Nothing about the stored database structure changes.
- *
- * Example stored tier:
- *
- * {
- *     quantity: 6,
- *     price: 1000
- * }
- *
- * API result:
- *
- * {
- *     quantity: 6,
- *     price: 1000,
- *     unitPrice: 166.66666666666666
- * }
- */
 const formatPricedProduct = (
     product
 ) => {
@@ -104,19 +86,9 @@ const formatPricedProduct = (
 
                       return {
                           ...tier,
-
                           quantity,
-
-                          /*
-                           * price remains the TOTAL
-                           * bundle/tier price.
-                           */
                           price,
 
-                          /*
-                           * unitPrice is calculated
-                           * from the bundle total.
-                           */
                           unitPrice:
                               calculateUnitPrice(
                                   quantity,
@@ -278,19 +250,6 @@ const createPricedProduct =
                 ? payload.bulkPricing
                 : [];
 
-        /*
-         * Quantity 1 is naturally also a
-         * one-item bundle.
-         *
-         * Example:
-         *
-         * quantity: 1
-         * price: 180
-         *
-         * means:
-         *
-         * 1 piece = ₱180
-         */
         const pricing = [
             {
                 quantity: 1,
@@ -304,24 +263,6 @@ const createPricedProduct =
                     tier.quantity
                 );
 
-            /*
-             * IMPORTANT:
-             *
-             * tier.price is NOT a
-             * per-piece price.
-             *
-             * It is the TOTAL price
-             * for quantity pieces.
-             *
-             * Example:
-             *
-             * quantity = 6
-             * price = 1000
-             *
-             * means:
-             *
-             * 6 pieces = ₱1000
-             */
             const price =
                 Number(
                     tier.price
@@ -352,7 +293,7 @@ const createPricedProduct =
             ) {
                 const error =
                     new Error(
-                        "Bulk price must be greater than 0."
+                        "Bulk total price must be greater than 0."
                     );
 
                 error.statusCode =
@@ -363,11 +304,6 @@ const createPricedProduct =
 
             pricing.push({
                 quantity,
-
-                /*
-                 * Keep the exact bundle
-                 * total in the database.
-                 */
                 price,
             });
         }
@@ -425,10 +361,6 @@ const createPricedProduct =
                     }
                 );
 
-            /*
-             * Return calculated
-             * unitPrice values as well.
-             */
             return formatPricedProduct(
                 product
             );
@@ -585,26 +517,12 @@ const updatePricedProduct =
         const quantities =
             new Set([1]);
 
-        for (
-            const tier of
-            bulkPricing
-        ) {
+        for (const tier of bulkPricing) {
             const quantity =
                 Number(
                     tier.quantity
                 );
 
-            /*
-             * Again, this is the
-             * TOTAL bundle price.
-             *
-             * Example:
-             *
-             * quantity: 6
-             * price: 1000
-             *
-             * = 6 pieces for ₱1000.
-             */
             const price =
                 Number(
                     tier.price
@@ -651,7 +569,7 @@ const updatePricedProduct =
             ) {
                 const error =
                     new Error(
-                        "Bulk price must be greater than 0."
+                        "Bulk total price must be greater than 0."
                     );
 
                 error.statusCode =
@@ -734,9 +652,47 @@ const updatePricedProduct =
         );
     };
 
+/*
+ * Deletes ONLY the priced product record.
+ *
+ * The source ProductCapture is deliberately preserved.
+ *
+ * Because getProducts() considers captures without a corresponding
+ * pricedproducts record to be unpriced, deleting the pricing record
+ * automatically makes the source product available for pricing again.
+ */
+const deletePricedProduct =
+    async (id) => {
+        const product =
+            await PricedProduct.findById(
+                id
+            );
+
+        if (!product) {
+            const error =
+                new Error(
+                    "Priced product not found."
+                );
+
+            error.statusCode = 404;
+
+            throw error;
+        }
+
+        const deletedProduct =
+            product.toObject();
+
+        await product.deleteOne();
+
+        return formatPricedProduct(
+            deletedProduct
+        );
+    };
+
 export {
     getProducts,
     createPricedProduct,
     getPricedProducts,
     updatePricedProduct,
+    deletePricedProduct,
 };
